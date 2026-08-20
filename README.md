@@ -73,6 +73,39 @@ When something looks risky:
 [npm-guard] Bypass with: npm-guard config allow <pkg>, --guard-allow=<pkg>, or NPM_GUARD_ALLOW.
 ```
 
+## Malware detection
+
+Every package is also cross-checked against the [OSV malicious-packages
+feed](https://osv.dev) — the same database OpenSSF uses to track packages
+pulled from npm for containing actual malicious code, not just CVEs. A hit
+blocks the install outright, no matter how popular or well-maintained the
+package otherwise looks:
+
+```
+[BLOCKED] some-package
+         - Flagged as known malware in the OSV database (MAL-2025-46966)
+```
+
+This matters because supply-chain attacks usually compromise a *legitimate*,
+widely-used package's maintainer account and publish a malicious version
+under the same name — download counts and history don't protect you.
+Before bypassing a block like this, look up the id (e.g.
+`https://osv.dev/vulnerability/MAL-2025-46966`) and pin to a version outside
+the flagged range rather than allowlisting the package outright.
+
+Separately, npm-guard also warns (without blocking) when a package runs a
+`preinstall`, `install`, or `postinstall` script — the most common way
+malicious code actually executes on install:
+
+```
+[OK] some-package
+         ! warning: Runs postinstall script(s) on install — review before trusting
+```
+
+That warning alone doesn't mean a package is malicious — plenty of
+legitimate tools use install scripts (native builds, telemetry, etc.) — it's
+just a signal worth a quick look since it's the mechanism attackers rely on.
+
 ## Pausing or turning it off
 
 You don't have to uninstall anything to pause it:
@@ -134,6 +167,7 @@ npm-guard config set blockDeprecated false
 | `maxMonthsSinceLastPublish` | `24` | Older than this with no update looks abandoned |
 | `requireRepository` | `false` | If `true`, packages with no repo link are blocked, not just warned |
 | `blockDeprecated` | `true` | Blocks anything npm itself marks as deprecated |
+| `blockMalware` | `true` | Blocks anything flagged in the OSV malicious-packages feed |
 
 ## Checking a project without installing anything
 
