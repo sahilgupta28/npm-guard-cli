@@ -55,18 +55,26 @@ function stripVersion(pkgArg) {
 // Reporting
 // ---------------------------------------------------------------------------
 
+const COLOR_ENABLED = !process.env.NO_COLOR && process.stdout.isTTY;
+const ANSI = { reset: "\x1b[0m", red: "\x1b[31m", green: "\x1b[32m", yellow: "\x1b[33m" };
+
+function colorize(text, color) {
+  return COLOR_ENABLED ? `${ANSI[color]}${text}${ANSI.reset}` : text;
+}
+
 function printReport(report, config) {
   const bypassed = config.allowlist.includes(report.name);
   if (report.ok || bypassed) {
-    console.log(`  [${bypassed && !report.ok ? "BYPASSED" : "OK"}] ${report.name}`);
+    const tag = bypassed && !report.ok ? "BYPASSED" : "OK";
+    console.log(`  [${colorize(tag, bypassed && !report.ok ? "yellow" : "green")}] ${report.name}`);
     if (bypassed && !report.ok) {
       report.reasons.forEach((r) => console.log(`         (would have failed: ${r})`));
     }
   } else {
-    console.log(`  [BLOCKED] ${report.name}`);
+    console.log(`  [${colorize("BLOCKED", "red")}] ${report.name}`);
     report.reasons.forEach((r) => console.log(`         - ${r}`));
   }
-  report.warnings.forEach((w) => console.log(`         ! warning: ${w}`));
+  report.warnings.forEach((w) => console.log(`         ${colorize("!", "yellow")} warning: ${w}`));
 }
 
 async function checkPackages(names, config) {
