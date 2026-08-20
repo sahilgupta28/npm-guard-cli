@@ -25,7 +25,7 @@ npm run build        # left alone — not an install command
 ## Install
 
 ```bash
-npm install -g npm-guard-cli
+npm install -g @sahilgupta28/npm-guard-cli
 ```
 
 This gives you a global `npm-guard` command.
