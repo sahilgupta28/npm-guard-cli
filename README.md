@@ -9,7 +9,6 @@ package looks abandoned, sketchy, or deprecated, the install is blocked with
 a clear explanation instead of silently going through.
 
 It works transparently with the commands you already use:
-
 ```bash
 npm i left-pad       # checked automatically
 npm install          # checks everything in package.json first
