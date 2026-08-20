@@ -251,6 +251,7 @@ function cmdStatus() {
   console.log(`  maxMonthsSinceLastPublish:  ${config.maxMonthsSinceLastPublish}`);
   console.log(`  requireRepository:          ${config.requireRepository}`);
   console.log(`  blockDeprecated:            ${config.blockDeprecated}`);
+  console.log(`  blockMalware:               ${config.blockMalware}`);
   console.log(`  allowlist:                  ${config.allowlist.join(", ") || "(none)"}`);
 }
 
