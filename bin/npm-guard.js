@@ -42,6 +42,13 @@ function collectDepsFromLockfile(cwd) {
   return [...names];
 }
 
+function parsePackageList(args) {
+  return args
+    .flatMap((a) => a.split(","))
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function stripVersion(pkgArg) {
   if (pkgArg.startsWith("@")) {
     const idx = pkgArg.indexOf("@", 1);
@@ -88,14 +95,32 @@ async function checkPackages(names, config) {
   const blocked = results.filter((r) => !r.ok && !config.allowlist.includes(r.name));
   console.log("");
   if (blocked.length > 0) {
-    console.log(
-      `[npm-guard] ${blocked.length} package(s) failed: ${blocked.map((r) => r.name).join(", ")}`
-    );
-    console.log("[npm-guard] Bypass with: npm-guard config allow <pkg>, --guard-allow=<pkg>, or NPM_GUARD_ALLOW.\n");
+    printBlockedSummary(blocked);
   } else {
     console.log("[npm-guard] All packages passed.\n");
   }
   return { results, blocked };
+}
+
+function printBlockedSummary(blocked) {
+  const names = blocked.map((r) => r.name);
+  const list = names.join(",");
+
+  console.log(colorize(`[npm-guard] Blocked ${blocked.length} package(s) for failing the reputation check:`, "red"));
+  console.log("");
+  names.forEach((n) => console.log(`    - ${n}`));
+  console.log("");
+  console.log("[npm-guard] What to do next:");
+  console.log("");
+  console.log("  1) If these are safe, allow them permanently (saved for future installs) — copy/paste:");
+  console.log("");
+  console.log(colorize(`     npm-guard config allow ${list}`, "green"));
+  console.log("");
+  console.log("  2) Or allow them for this install only, without saving anything — copy/paste:");
+  console.log("");
+  console.log(colorize(`     npm install --guard-allow=${list}`, "green"));
+  console.log("");
+  console.log("  Then re-run your original npm command.\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -246,11 +271,21 @@ function cmdConfig(args) {
     cfg.setGlobalConfigValue(key, value);
     console.log(`[npm-guard] Set ${key} = ${value}`);
   } else if (action === "allow") {
-    cfg.addToGlobalAllowlist(rest[0]);
-    console.log(`[npm-guard] Added '${rest[0]}' to the global allowlist.`);
+    const names = parsePackageList(rest);
+    if (names.length === 0) {
+      console.error("Usage: npm-guard config allow <pkg>[,<pkg2>,...]");
+      process.exit(1);
+    }
+    cfg.addToGlobalAllowlist(names);
+    console.log(`[npm-guard] Added to the global allowlist: ${names.join(", ")}`);
   } else if (action === "disallow") {
-    cfg.removeFromGlobalAllowlist(rest[0]);
-    console.log(`[npm-guard] Removed '${rest[0]}' from the global allowlist.`);
+    const names = parsePackageList(rest);
+    if (names.length === 0) {
+      console.error("Usage: npm-guard config disallow <pkg>[,<pkg2>,...]");
+      process.exit(1);
+    }
+    cfg.removeFromGlobalAllowlist(names);
+    console.log(`[npm-guard] Removed from the global allowlist: ${names.join(", ")}`);
   } else {
     console.error("Usage: npm-guard config <get|set|allow|disallow> [args]");
     process.exit(1);
