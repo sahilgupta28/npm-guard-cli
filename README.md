@@ -1,156 +1,170 @@
-# @sahilgupta28/npm-guard-cli
+# npm-guard-cli
 
-Blocks `npm i`, `npm install <pkg>`, `npm update`, and `npm ci` from pulling in
-packages with poor reputation (low downloads, stale, deprecated, no
-repository listed) — unless you explicitly bypass them.
+**Stop bad packages before they land in your project.**
+
+`npm-guard-cli` checks a package's reputation — how many people actually
+download it, how recently it was updated, whether it's been deprecated, and
+whether it even lists a repository — before letting `npm` install it. If a
+package looks abandoned, sketchy, or deprecated, the install is blocked with
+a clear explanation instead of silently going through.
+
+It works transparently with the commands you already use:
+
+```bash
+npm i left-pad       # checked automatically
+npm install          # checks everything in package.json first
+npm update           # checks before updating
+npm ci               # checks everything in package-lock.json first
+npm run build        # left alone — not an install command
+```
+
+🔗 Source & issues: [github.com/sahilgupta28/npm-guard-cli](https://github.com/sahilgupta28/npm-guard-cli)
+
+---
 
 ## Install
 
-**From the npm registry:**
 ```bash
-npm install -g @sahilgupta28/npm-guard-cli
+npm install -g npm-guard-cli
 ```
 
-**From a local tarball (no registry needed):**
-```bash
-npm install -g ./sahilgupta28-npm-guard-cli-1.0.1.tgz
-```
+This gives you a global `npm-guard` command.
 
-**From source, for development:**
-```bash
-cd npm-guard-cli
-npm link
-```
+## Quick start
 
-Any of these gives you a global `npm-guard` command.
-
-## Enable it
+Turn it on:
 
 ```bash
 npm-guard enable
 ```
 
-This does two things:
-1. Adds an `npm` alias to whichever shell rc files it finds (`~/.bashrc`,
-   `~/.zshrc`, `~/.bash_profile`, `~/.config/fish/config.fish`), wrapped in
-   clearly marked comments so it's easy to find and remove.
-2. Turns on the "enabled" flag in `~/.npm-guard/state.json`.
+Restart your terminal (or run `source ~/.bashrc` / `source ~/.zshrc`), and
+you're protected. From now on, `npm i`, `npm install`, `npm update`, and
+`npm ci` are all checked automatically before anything gets installed —
+everything else (`npm run`, `npm test`, `npm start`, ...) is left completely
+alone.
 
-Restart your shell (or `source ~/.bashrc`) and you're set:
-
-```bash
-npm i left-pad          # checked first
-npm install             # scans package.json + package-lock.json first
-npm update               # scans and re-checks before updating
-npm ci                   # scans package-lock.json first
-npm run build             # untouched — passes straight through
-```
-
-## Toggle without editing your shell again
-
-Once the alias is in place, you can flip checks on/off instantly:
+Check it's active any time:
 
 ```bash
-npm-guard disable   # alias stays, but npm behaves normally again
-npm-guard enable    # turns checks back on
-npm-guard status    # see current state + config
+npm-guard status
 ```
 
-Or override for a single command/session without touching any files:
+### What you'll see
+
+When a package looks fine:
+```
+[npm-guard] Checking reputation for 1 package(s)...
+
+  [OK] express
+
+[npm-guard] All packages passed.
+```
+
+When something looks risky:
+```
+[npm-guard] Checking reputation for 1 package(s)...
+
+  [BLOCKED] some-sketchy-package
+         - Only 4 monthly downloads (minimum: 1000)
+         - Last published 41.2 months ago (maximum: 24)
+
+[npm-guard] 1 package(s) failed: some-sketchy-package
+[npm-guard] Bypass with: npm-guard config allow <pkg>, --guard-allow=<pkg>, or NPM_GUARD_ALLOW.
+```
+
+## Pausing or turning it off
+
+You don't have to uninstall anything to pause it:
+
 ```bash
-NPM_GUARD_ENABLED=0 npm install some-pkg     # skip just this once
-npm install some-pkg --guard-disable         # same thing, as a flag
+npm-guard disable   # checks paused, npm behaves normally
+npm-guard enable    # checks back on
 ```
 
-## Fully remove it
+Or skip it for just one command, without changing any settings:
+
+```bash
+npm install some-pkg --guard-disable
+```
+
+To remove it completely and restore normal `npm` behavior:
 
 ```bash
 npm-guard uninstall
 ```
 
-Strips the alias block back out of every rc file it touched and restores
-normal `npm` behavior after your next shell restart.
+## Letting a specific package through
 
-## Managing configuration
-
-Global settings live in `~/.npm-guard/config.json` and apply across every
-project. Manage them with the CLI instead of hand-editing the file:
+If a package fails the check but you know it's fine, you can allow it — pick
+whichever fits your workflow:
 
 ```bash
-npm-guard config get                          # view everything
-npm-guard config get minMonthlyDownloads      # view one key
-npm-guard config set minMonthlyDownloads 500
-npm-guard config set maxMonthsSinceLastPublish 36
-npm-guard config set requireRepository true
-npm-guard config set blockDeprecated false
+# Always allow it, in every project on this machine
 npm-guard config allow some-trusted-package
-npm-guard config disallow some-trusted-package
+
+# Just for one command
+npm install some-trusted-package --guard-allow=some-trusted-package
+
+# Just for this project — add to package.json
 ```
-
-Defaults:
-
-| Key | Default |
-|---|---|
-| `minMonthlyDownloads` | 1000 |
-| `maxMonthsSinceLastPublish` | 24 |
-| `requireRepository` | false (warns only) |
-| `blockDeprecated` | true |
-| `allowlist` | `[]` |
-
-### Per-project overrides
-
-Global config applies everywhere, but a given project can override it —
-useful for a repo that intentionally depends on something niche. Either add
-`npm-guard.config.json` to the project root, or a field in its
-`package.json`:
-
 ```json
 {
   "npmGuard": {
-    "allowlist": ["some-legacy-internal-package"]
+    "allowlist": ["some-trusted-package"]
   }
 }
 ```
 
-Precedence (later overrides earlier): global config → project config file →
-`package.json` field → `NPM_GUARD_ALLOW` env var → `--guard-allow` CLI flag.
+## Adjusting the rules
 
-### One-off bypass, no config changes
+Defaults are reasonable for most people, but you can tune them:
 
 ```bash
-NPM_GUARD_ALLOW="pkg-a,pkg-b" npm install pkg-a
-npm install pkg-a --guard-allow=pkg-a
+npm-guard config get                            # see current settings
+npm-guard config set minMonthlyDownloads 500
+npm-guard config set maxMonthsSinceLastPublish 36
+npm-guard config set requireRepository true
+npm-guard config set blockDeprecated false
 ```
 
-## Report-only mode (no install, e.g. for CI)
+| Setting | Default | Meaning |
+|---|---|---|
+| `minMonthlyDownloads` | `1000` | Below this, a package is flagged as too obscure |
+| `maxMonthsSinceLastPublish` | `24` | Older than this with no update looks abandoned |
+| `requireRepository` | `false` | If `true`, packages with no repo link are blocked, not just warned |
+| `blockDeprecated` | `true` | Blocks anything npm itself marks as deprecated |
+
+## Checking a project without installing anything
+
+Useful for CI, or just to see where you stand:
 
 ```bash
 npm-guard check
 ```
-Exits `1` if anything in `package.json`/`package-lock.json` fails, `0`
-otherwise. Doesn't require the alias to be enabled.
 
-## How the interception actually works
+Exits with an error code if anything in `package.json` or
+`package-lock.json` fails the check — handy as a CI step.
 
-npm has no built-in hook that fires *before* it resolves/downloads a package
-you just typed on the command line, so `npm-guard enable` aliases `npm`
-itself to the `npm-guard` command. When you run something npm-guard doesn't
-need to touch (`npm run`, `npm test`, etc.) it passes straight through
-untouched. When you run an install-family command, it checks first, then
-hands off to the real `npm` binary — found via `which npm`/`where npm`, which
-resolves through your `PATH` and bypasses shell aliases entirely, so there's
-no infinite loop.
+## FAQ
 
-## Limitations
+**Will this slow down my installs?**
+It adds one quick lookup per package before the install starts. For a
+handful of packages this is barely noticeable.
 
-- Bare `npm install`/`npm ci`/`npm update` with no package name checks
-  *everything* currently declared; if anything fails, the whole install is
-  blocked rather than silently dropping just the bad dependency, since
-  npm-guard doesn't rewrite your `package.json`/lockfile for you. Bypass the
-  specific package to proceed.
-- Explicit `npm i pkgA pkgB` only drops the ones that fail; the rest still
-  install.
-- Requires Node 18+ (uses the built-in `fetch`).
-- Windows: the alias step only edits POSIX/fish shell configs. On
-  PowerShell/cmd, add `Set-Alias npm npm-guard` to your PowerShell profile
-  manually.
+**Does it work on Windows?**
+Yes, via PowerShell — though the automatic setup only edits bash/zsh/fish
+configs. On PowerShell, add this line to your profile manually:
+```powershell
+Set-Alias npm npm-guard
+```
+
+**What if I don't want to alias `npm` at all?**
+Use `npm-guard check` on its own — it scans your project without ever
+touching how `npm` behaves.
+
+**Requirements:** Node.js 18 or newer.
+
+## License
+
+MIT

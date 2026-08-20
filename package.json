@@ -1,14 +1,16 @@
 {
   "name": "@sahilgupta28/npm-guard-cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Blocks npm installs of packages with poor reputation (low downloads, stale, deprecated) unless explicitly bypassed.",
-  "keywords": [
-    "npm",
-    "security",
-    "supply-chain",
-    "cli",
-    "install-hook"
-  ],
+  "keywords": ["npm", "security", "supply-chain", "cli", "install-hook"],
+  "homepage": "https://github.com/sahilgupta28/npm-guard-cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sahilgupta28/npm-guard-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sahilgupta28/npm-guard-cli/issues"
+  },
   "license": "MIT",
   "engines": {
     "node": ">=18"
