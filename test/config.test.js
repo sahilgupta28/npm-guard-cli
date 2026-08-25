@@ -53,3 +53,66 @@ test("a project with no config file falls back to global settings untouched", ()
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("without strict mode, a project can relax blockMalware", () => {
+  const dir = makeTmpProject();
+  try {
+    cfg.setProjectConfigValue(dir, "blockMalware", false);
+    const effective = cfg.loadEffectiveConfig(dir, []);
+    assert.equal(effective.blockMalware, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("strict mode ignores a project trying to relax blockMalware or blockDeprecated", () => {
+  const dir = makeTmpProject();
+  const originalStrict = process.env.NPM_GUARD_STRICT;
+  process.env.NPM_GUARD_STRICT = "1";
+  try {
+    cfg.setProjectConfigValue(dir, "blockMalware", false);
+    cfg.setProjectConfigValue(dir, "blockDeprecated", false);
+    const effective = cfg.loadEffectiveConfig(dir, []);
+    assert.equal(effective.blockMalware, true);
+    assert.equal(effective.blockDeprecated, true);
+  } finally {
+    if (originalStrict === undefined) delete process.env.NPM_GUARD_STRICT;
+    else process.env.NPM_GUARD_STRICT = originalStrict;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("strict mode ignores a project lowering minMonthlyDownloads or raising maxMonthsSinceLastPublish", () => {
+  const dir = makeTmpProject();
+  const originalStrict = process.env.NPM_GUARD_STRICT;
+  process.env.NPM_GUARD_STRICT = "1";
+  try {
+    const global = cfg.getGlobalConfig();
+    cfg.setProjectConfigValue(dir, "minMonthlyDownloads", 0);
+    cfg.setProjectConfigValue(dir, "maxMonthsSinceLastPublish", 999999);
+    const effective = cfg.loadEffectiveConfig(dir, []);
+    assert.equal(effective.minMonthlyDownloads, global.minMonthlyDownloads);
+    assert.equal(effective.maxMonthsSinceLastPublish, global.maxMonthsSinceLastPublish);
+  } finally {
+    if (originalStrict === undefined) delete process.env.NPM_GUARD_STRICT;
+    else process.env.NPM_GUARD_STRICT = originalStrict;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("strict mode still allows a project to make rules stricter, and still honors allowlist additions", () => {
+  const dir = makeTmpProject();
+  const originalStrict = process.env.NPM_GUARD_STRICT;
+  process.env.NPM_GUARD_STRICT = "1";
+  try {
+    cfg.setProjectConfigValue(dir, "minMonthlyDownloads", 999999);
+    cfg.addToProjectAllowlist(dir, ["some-trusted-package"]);
+    const effective = cfg.loadEffectiveConfig(dir, []);
+    assert.equal(effective.minMonthlyDownloads, 999999);
+    assert.ok(effective.allowlist.includes("some-trusted-package"));
+  } finally {
+    if (originalStrict === undefined) delete process.env.NPM_GUARD_STRICT;
+    else process.env.NPM_GUARD_STRICT = originalStrict;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -17,31 +17,77 @@ npm ci               # checks everything in package-lock.json first
 npm run build        # left alone — not an install command
 ```
 
-🔗 Source & issues: [github.com/sahilgupta28/npm-guard-cli](https://github.com/sahilgupta28/npm-guard-cli)
-
 ---
 
-## Install
+## Choose how to run it
+
+npm-guard supports two setups. Pick based on how much of your machine you
+want it touching:
+
+| | Scope | Catches `npm i <new-pkg>` automatically? | Touches your shell config? |
+|---|---|---|---|
+| **A. Just this project** | Only the folder you set it up in | Only on a bare `npm install`/`npm ci`, not on an ad-hoc add — run `npm-guard check` for those | No |
+| **B. Every project on this machine** | Every terminal, every project | Yes, always | Yes — adds an `alias npm=...` to your shell rc files |
+
+**Start with A** if you're trying npm-guard out, or you only want it guarding
+one specific project without changing how `npm` behaves anywhere else on
+your machine. Move to **B** once you want it on by default, everywhere,
+with no per-project setup.
+
+### A. Just this project
+
+Install it as a dev dependency of the project you want checked. Nothing
+outside this folder is touched — no shell alias, no global state:
 
 ```bash
-npm install -g @sahilgupta28/npm-guard-cli
+npm install --save-dev npm-guard-cli
 ```
 
-This gives you a global `npm-guard` command.
-
-## Quick start
-
-Turn it on:
+Check the project on demand, any time:
 
 ```bash
+npx npm-guard check
+```
+
+This scans everything in `package.json` and `package-lock.json` and exits
+with a non-zero code if anything fails the check — run it by hand, or wire
+it into CI.
+
+To run it automatically on a plain `npm install` or `npm ci`, add it as a
+`preinstall` script in this project's own `package.json`:
+
+```json
+{
+  "scripts": {
+    "preinstall": "npm-guard check"
+  }
+}
+```
+
+> **Note:** npm only runs a project's own `preinstall`/`postinstall` scripts
+> for a full install (`npm install` with no arguments, or `npm ci`) — not
+> when you run `npm install <new-package>` to add something new. So this
+> hook protects "install everything already in `package.json`," but on its
+> own it won't catch a one-off `npm install some-new-package`. Run
+> `npx npm-guard check` by hand before adding a new package if you want that
+> covered too without touching setup B, or move to setup B if you want new
+> adds caught automatically.
+
+### B. Every project on this machine
+
+Install it globally and turn it on:
+
+```bash
+npm install -g npm-guard-cli
 npm-guard enable
 ```
 
-Restart your terminal (or run `source ~/.bashrc` / `source ~/.zshrc`), and
-you're protected. From now on, `npm i`, `npm install`, `npm update`, and
-`npm ci` are all checked automatically before anything gets installed —
-everything else (`npm run`, `npm test`, `npm start`, ...) is left completely
-alone.
+Restart your terminal (or run `source ~/.bashrc` / `source ~/.zshrc`). This
+adds `alias npm="npm-guard"` to your shell config, so from now on — **in
+every project, every terminal session on this machine** — `npm i`,
+`npm install`, `npm update`, and `npm ci` are all checked automatically
+before anything installs. Everything else (`npm run`, `npm test`,
+`npm start`, ...) is left completely alone.
 
 Check it's active any time:
 
@@ -107,6 +153,10 @@ just a signal worth a quick look since it's the mechanism attackers rely on.
 
 ## Pausing or turning it off
 
+This section is about setup **B** (the global alias). If you're on setup
+**A**, there's no alias to undo — just remove the `preinstall` script and/or
+uninstall the dev dependency from that project's `package.json`.
+
 You don't have to uninstall anything to pause it:
 
 ```bash
@@ -128,6 +178,11 @@ npm-guard uninstall
 
 ## Global vs. project configuration
 
+This section is about *which rules apply* (thresholds, allowlist) — not
+about *whether npm-guard runs at all*, which is the setup A/B choice above.
+Both setup A and setup B read the same global/project config described
+below; they only differ in what triggers the check in the first place.
+
 npm-guard reads settings from two places, and merges them every time it runs:
 
 | Level | File | Scope |
@@ -141,6 +196,23 @@ value. Allowlists work differently: they're combined (union) from every
 level, so a package allowed globally, in the project file, via
 `--guard-allow`, or via `NPM_GUARD_ALLOW` is allowed everywhere — an ignore
 list only needs to say "yes" once, from any level, to take effect.
+
+This is convenient, but it also means a project you don't fully trust yet —
+one you just cloned to try out, say — can ship its own
+`npm-guard.config.json` that quietly turns rules off for itself
+(`"blockMalware": false`, `"minMonthlyDownloads": 0`) with no prompt. If
+you'd rather a project could only make the rules *stricter* for itself (and
+still add to the allowlist, just never relax a threshold), turn on strict
+mode:
+
+```bash
+export NPM_GUARD_STRICT=1
+```
+
+In strict mode, a project-level or `package.json`-level override is only
+applied if it makes that specific rule stricter than your global setting —
+anything that would loosen it is ignored. Allowlist entries are unaffected
+either way; they're always additive.
 
 Manage either level with the same commands by adding `--project`:
 
@@ -207,17 +279,6 @@ npm-guard config set blockDeprecated false
 | `blockDeprecated` | `true` | Blocks anything npm itself marks as deprecated |
 | `blockMalware` | `true` | Blocks anything flagged in the OSV malicious-packages feed |
 
-## Checking a project without installing anything
-
-Useful for CI, or just to see where you stand:
-
-```bash
-npm-guard check
-```
-
-Exits with an error code if anything in `package.json` or
-`package-lock.json` fails the check — handy as a CI step.
-
 ## FAQ
 
 **Will this slow down my installs?**
@@ -232,8 +293,8 @@ Set-Alias npm npm-guard
 ```
 
 **What if I don't want to alias `npm` at all?**
-Use `npm-guard check` on its own — it scans your project without ever
-touching how `npm` behaves.
+That's setup A above — install locally, run `npm-guard check` (by hand or
+via a `preinstall` script). It never touches how `npm` behaves.
 
 **Requirements:** Node.js 18 or newer.
 
