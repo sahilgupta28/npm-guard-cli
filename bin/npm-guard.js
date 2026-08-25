@@ -243,52 +243,68 @@ function cmdUninstall() {
 }
 
 function cmdStatus() {
-  const config = cfg.getGlobalConfig();
+  const cwd = process.cwd();
+  const projectConfig = cfg.getProjectConfig(cwd);
+  const hasProjectConfig = Object.keys(projectConfig).length > 0;
+  const effective = cfg.loadEffectiveConfig(cwd, []);
+
   console.log(`Enabled:        ${cfg.isEnabled()}`);
   console.log(`Alias present:  ${shell.aliasIsInstalled()}`);
   console.log(`Global config:  ${cfg.GLOBAL_CONFIG_PATH}`);
-  console.log(`  minMonthlyDownloads:        ${config.minMonthlyDownloads}`);
-  console.log(`  maxMonthsSinceLastPublish:  ${config.maxMonthsSinceLastPublish}`);
-  console.log(`  requireRepository:          ${config.requireRepository}`);
-  console.log(`  blockDeprecated:            ${config.blockDeprecated}`);
-  console.log(`  blockMalware:               ${config.blockMalware}`);
-  console.log(`  allowlist:                  ${config.allowlist.join(", ") || "(none)"}`);
+  console.log(
+    `Project config: ${hasProjectConfig ? cfg.getProjectConfigPath(cwd) : `(none found in ${cwd})`}`
+  );
+  console.log("");
+  console.log("Effective settings (project overrides global; allowlists are combined):");
+  console.log(`  minMonthlyDownloads:        ${effective.minMonthlyDownloads}`);
+  console.log(`  maxMonthsSinceLastPublish:  ${effective.maxMonthsSinceLastPublish}`);
+  console.log(`  requireRepository:          ${effective.requireRepository}`);
+  console.log(`  blockDeprecated:            ${effective.blockDeprecated}`);
+  console.log(`  blockMalware:               ${effective.blockMalware}`);
+  console.log(`  allowlist:                  ${effective.allowlist.join(", ") || "(none)"}`);
 }
 
 function cmdConfig(args) {
-  const [action, ...rest] = args;
+  const isProject = args.includes("--project");
+  const [action, ...rest] = isProject ? args.filter((a) => a !== "--project") : args;
+  const cwd = process.cwd();
+  const scope = isProject ? "project" : "global";
+
   if (action === "get") {
-    const config = cfg.getGlobalConfig();
+    const config = isProject ? cfg.getProjectConfig(cwd) : cfg.getGlobalConfig();
     console.log(JSON.stringify(rest[0] ? { [rest[0]]: config[rest[0]] } : config, null, 2));
   } else if (action === "set") {
     const [key, rawValue] = rest;
     if (!key || rawValue === undefined) {
-      console.error("Usage: npm-guard config set <key> <value>");
+      console.error("Usage: npm-guard config set <key> <value> [--project]");
       process.exit(1);
     }
     let value = rawValue;
     if (["true", "false"].includes(rawValue)) value = rawValue === "true";
     else if (!Number.isNaN(Number(rawValue))) value = Number(rawValue);
-    cfg.setGlobalConfigValue(key, value);
-    console.log(`[npm-guard] Set ${key} = ${value}`);
+    if (isProject) cfg.setProjectConfigValue(cwd, key, value);
+    else cfg.setGlobalConfigValue(key, value);
+    console.log(`[npm-guard] Set ${key} = ${value} (${scope})`);
   } else if (action === "allow") {
     const names = parsePackageList(rest);
     if (names.length === 0) {
-      console.error("Usage: npm-guard config allow <pkg>[,<pkg2>,...]");
+      console.error("Usage: npm-guard config allow <pkg>[,<pkg2>,...] [--project]");
       process.exit(1);
     }
-    cfg.addToGlobalAllowlist(names);
-    console.log(`[npm-guard] Added to the global allowlist: ${names.join(", ")}`);
+    if (isProject) cfg.addToProjectAllowlist(cwd, names);
+    else cfg.addToGlobalAllowlist(names);
+    console.log(`[npm-guard] Added to the ${scope} allowlist: ${names.join(", ")}`);
   } else if (action === "disallow") {
     const names = parsePackageList(rest);
     if (names.length === 0) {
-      console.error("Usage: npm-guard config disallow <pkg>[,<pkg2>,...]");
+      console.error("Usage: npm-guard config disallow <pkg>[,<pkg2>,...] [--project]");
       process.exit(1);
     }
-    cfg.removeFromGlobalAllowlist(names);
-    console.log(`[npm-guard] Removed from the global allowlist: ${names.join(", ")}`);
+    if (isProject) cfg.removeFromProjectAllowlist(cwd, names);
+    else cfg.removeFromGlobalAllowlist(names);
+    console.log(`[npm-guard] Removed from the ${scope} allowlist: ${names.join(", ")}`);
   } else {
-    console.error("Usage: npm-guard config <get|set|allow|disallow> [args]");
+    console.error("Usage: npm-guard config <get|set|allow|disallow> [args] [--project]");
     process.exit(1);
   }
 }

@@ -126,6 +126,36 @@ To remove it completely and restore normal `npm` behavior:
 npm-guard uninstall
 ```
 
+## Global vs. project configuration
+
+npm-guard reads settings from two places, and merges them every time it runs:
+
+| Level | File | Scope |
+|---|---|---|
+| Global | `~/.npm-guard/config.json` | Every project on this machine |
+| Project | `npm-guard.config.json` (repo root) or an `npmGuard` field in `package.json` | Just this repo |
+
+**Project settings always win.** For rules like `minMonthlyDownloads` or
+`blockDeprecated`, a value set at the project level overrides the global
+value. Allowlists work differently: they're combined (union) from every
+level, so a package allowed globally, in the project file, via
+`--guard-allow`, or via `NPM_GUARD_ALLOW` is allowed everywhere — an ignore
+list only needs to say "yes" once, from any level, to take effect.
+
+Manage either level with the same commands by adding `--project`:
+
+```bash
+npm-guard config set minMonthlyDownloads 500              # global
+npm-guard config set minMonthlyDownloads 500 --project    # this repo only
+
+npm-guard config allow some-trusted-package                # global
+npm-guard config allow some-trusted-package --project      # this repo only
+```
+
+`npm-guard status` shows both the global and project config file paths,
+plus the effective (merged) settings actually in use for the current
+directory.
+
 ## Letting a specific package through
 
 If a package fails the check but you know it's fine, you can allow it — pick
@@ -135,11 +165,18 @@ whichever fits your workflow:
 # Always allow it, in every project on this machine
 npm-guard config allow some-trusted-package
 
+# Just for this project, from the CLI
+npm-guard config allow some-trusted-package --project
+
 # Just for one command
 npm install some-trusted-package --guard-allow=some-trusted-package
-
-# Just for this project — add to package.json
 ```
+
+The `--project` flag above writes to `npm-guard.config.json` in the current
+directory. You can also edit that file directly, or use the equivalent
+`npmGuard` field in `package.json` — both are project-level and merge the
+same way:
+
 ```json
 {
   "npmGuard": {
@@ -150,12 +187,14 @@ npm install some-trusted-package --guard-allow=some-trusted-package
 
 ## Adjusting the rules
 
-Defaults are reasonable for most people, but you can tune them:
+Defaults are reasonable for most people, but you can tune them — globally,
+or per project with `--project`:
 
 ```bash
-npm-guard config get                            # see current settings
+npm-guard config get                            # see current global settings
+npm-guard config get --project                  # see this project's overrides
 npm-guard config set minMonthlyDownloads 500
-npm-guard config set maxMonthsSinceLastPublish 36
+npm-guard config set maxMonthsSinceLastPublish 36 --project
 npm-guard config set requireRepository true
 npm-guard config set blockDeprecated false
 ```
