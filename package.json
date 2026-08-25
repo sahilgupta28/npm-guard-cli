@@ -1,5 +1,5 @@
 {
-  "name": "@sahilgupta28/npm-guard-cli",
+  "name": "npm-guard-cli",
   "version": "1.0.14",
   "description": "Blocks npm installs of packages with poor reputation (low downloads, stale, deprecated) unless explicitly bypassed.",
   "keywords": [
@@ -31,6 +31,7 @@
   ],
   "scripts": {
     "postinstall": "node bin/npm-guard.js postinstall-message",
-    "test": "node --test test/"
+    "test": "node --test",
+    "prepublishOnly": "npm test"
   }
 }
