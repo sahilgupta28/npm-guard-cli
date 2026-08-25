@@ -118,6 +118,8 @@ When something looks risky:
 [npm-guard] Bypass with: npm-guard config allow <pkg>, --guard-allow=<pkg>, or NPM_GUARD_ALLOW.
 ```
 
+
+
 ## Malware detection
 
 Every package is also cross-checked against the [OSV malicious-packages
