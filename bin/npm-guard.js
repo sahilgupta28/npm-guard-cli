@@ -58,6 +58,14 @@ function stripVersion(pkgArg) {
   return idx === -1 ? pkgArg : pkgArg.slice(0, idx);
 }
 
+// Both the registry lookup and the post-check filter need to key off the
+// same (version-stripped) name — otherwise a report for "pkg" never matches
+// a blocked-check against "pkg@1.2.3" and a blocked package slips through.
+function filterAllowedPackages(explicitPackages, blocked) {
+  const blockedNames = new Set(blocked.map((r) => r.name));
+  return explicitPackages.filter((p) => !blockedNames.has(stripVersion(p)));
+}
+
 // ---------------------------------------------------------------------------
 // Reporting
 // ---------------------------------------------------------------------------
@@ -132,7 +140,17 @@ function findRealNpm() {
   const result = spawnSync(finder, ["npm"], { encoding: "utf8" });
   if (result.status === 0) {
     const lines = result.stdout.trim().split("\n").filter(Boolean);
-    if (lines[0]) return lines[0];
+    // Guard against ever resolving back to this very script (e.g. if a future
+    // install method puts npm-guard on PATH as a file literally named "npm",
+    // rather than only via a shell alias) — that would recurse forever.
+    const candidate = lines.find((line) => {
+      try {
+        return fs.realpathSync(line) !== fs.realpathSync(__filename);
+      } catch (e) {
+        return true;
+      }
+    });
+    if (candidate) return candidate;
   }
   return "npm";
 }
@@ -176,7 +194,7 @@ async function handleNpmPassthrough(argv) {
   const explicitPackages = rest.filter((a) => !a.startsWith("-"));
   const flagArgs = rest.filter((a) => a.startsWith("-"));
 
-  let targetPackages = explicitPackages;
+  let targetPackages = explicitPackages.map(stripVersion);
   let scanningWholeProject = false;
 
   if (explicitPackages.length === 0) {
@@ -199,7 +217,7 @@ async function handleNpmPassthrough(argv) {
     return runRealNpm(positional);
   }
 
-  const allowedPackages = explicitPackages.filter((p) => !blocked.some((r) => r.name === stripVersion(p)));
+  const allowedPackages = filterAllowedPackages(explicitPackages, blocked);
   if (allowedPackages.length === 0) {
     console.error("[npm-guard] All requested packages were blocked. Nothing to install.");
     process.exit(1);
@@ -249,6 +267,7 @@ function cmdStatus() {
   const effective = cfg.loadEffectiveConfig(cwd, []);
 
   console.log(`Enabled:        ${cfg.isEnabled()}`);
+  console.log(`Strict mode:    ${cfg.isStrictMode()} (set NPM_GUARD_STRICT=1 to stop projects from relaxing rules)`);
   console.log(`Alias present:  ${shell.aliasIsInstalled()}`);
   console.log(`Global config:  ${cfg.GLOBAL_CONFIG_PATH}`);
   console.log(
@@ -354,7 +373,11 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error(`[npm-guard] Unexpected error: ${e.message}`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((e) => {
+    console.error(`[npm-guard] Unexpected error: ${e.message}`);
+    process.exit(1);
+  });
+}
+
+module.exports = { stripVersion, filterAllowedPackages, parsePackageList, collectDepsFromPackageJson, collectDepsFromLockfile };
