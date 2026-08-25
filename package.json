@@ -1,5 +1,5 @@
 {
-  "name": "npm-guard-cli",
+  "name": "@sahilgupta28/npm-guard-cli",
   "version": "1.0.15",
   "description": "Blocks npm installs of packages with poor reputation (low downloads, stale, deprecated) unless explicitly bypassed.",
   "keywords": [

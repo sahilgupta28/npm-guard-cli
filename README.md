@@ -40,7 +40,7 @@ Install it as a dev dependency of the project you want checked. Nothing
 outside this folder is touched — no shell alias, no global state:
 
 ```bash
-npm install --save-dev npm-guard-cli
+npm install --save-dev @sahilgupta28/npm-guard-cli
 ```
 
 Check the project on demand, any time:
@@ -78,7 +78,7 @@ To run it automatically on a plain `npm install` or `npm ci`, add it as a
 Install it globally and turn it on:
 
 ```bash
-npm install -g npm-guard-cli
+npm install -g @sahilgupta28/npm-guard-cli
 npm-guard enable
 ```
 
