@@ -23,7 +23,7 @@ test("project config overrides global config for scalar settings", () => {
 test("project allowlist entries are merged into the effective allowlist", () => {
   const dir = makeTmpProject();
   try {
-    cfg.addToProjectAllowlist(dir, ["some-project-only-package"]);
+    cfg.addToProjectList(dir, "allowlist", ["some-project-only-package"]);
     const effective = cfg.loadEffectiveConfig(dir, []);
     assert.ok(effective.allowlist.includes("some-project-only-package"));
   } finally {
@@ -31,11 +31,11 @@ test("project allowlist entries are merged into the effective allowlist", () => 
   }
 });
 
-test("removeFromProjectAllowlist removes an entry from the project file only", () => {
+test("removeFromProjectList removes an entry from the project file only", () => {
   const dir = makeTmpProject();
   try {
-    cfg.addToProjectAllowlist(dir, ["temp-pkg"]);
-    cfg.removeFromProjectAllowlist(dir, ["temp-pkg"]);
+    cfg.addToProjectList(dir, "allowlist", ["temp-pkg"]);
+    cfg.removeFromProjectList(dir, "allowlist", ["temp-pkg"]);
     const project = cfg.getProjectConfig(dir);
     assert.ok(!(project.allowlist || []).includes("temp-pkg"));
   } finally {
@@ -106,10 +106,47 @@ test("strict mode still allows a project to make rules stricter, and still honor
   process.env.NPM_GUARD_STRICT = "1";
   try {
     cfg.setProjectConfigValue(dir, "minMonthlyDownloads", 999999);
-    cfg.addToProjectAllowlist(dir, ["some-trusted-package"]);
+    cfg.addToProjectList(dir, "allowlist", ["some-trusted-package"]);
     const effective = cfg.loadEffectiveConfig(dir, []);
     assert.equal(effective.minMonthlyDownloads, 999999);
     assert.ok(effective.allowlist.includes("some-trusted-package"));
+  } finally {
+    if (originalStrict === undefined) delete process.env.NPM_GUARD_STRICT;
+    else process.env.NPM_GUARD_STRICT = originalStrict;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a project ignore list is merged into the effective config", () => {
+  const dir = makeTmpProject();
+  try {
+    cfg.addToProjectList(dir, "ignore", ["some-internal-package"]);
+    const effective = cfg.loadEffectiveConfig(dir, []);
+    assert.ok(effective.ignore.includes("some-internal-package"));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("removeFromProjectList drops an ignore entry", () => {
+  const dir = makeTmpProject();
+  try {
+    cfg.addToProjectList(dir, "ignore", ["temp-pkg"]);
+    cfg.removeFromProjectList(dir, "ignore", ["temp-pkg"]);
+    assert.ok(!(cfg.getProjectConfig(dir).ignore || []).includes("temp-pkg"));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("strict mode drops a project-level ignore list, since it would skip the check silently", () => {
+  const dir = makeTmpProject();
+  const originalStrict = process.env.NPM_GUARD_STRICT;
+  process.env.NPM_GUARD_STRICT = "1";
+  try {
+    cfg.addToProjectList(dir, "ignore", ["untrusted-repo-skips-this"]);
+    const effective = cfg.loadEffectiveConfig(dir, []);
+    assert.ok(!effective.ignore.includes("untrusted-repo-skips-this"));
   } finally {
     if (originalStrict === undefined) delete process.env.NPM_GUARD_STRICT;
     else process.env.NPM_GUARD_STRICT = originalStrict;

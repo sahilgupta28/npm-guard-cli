@@ -214,7 +214,8 @@ export NPM_GUARD_STRICT=1
 In strict mode, a project-level or `package.json`-level override is only
 applied if it makes that specific rule stricter than your global setting —
 anything that would loosen it is ignored. Allowlist entries are unaffected
-either way; they're always additive.
+either way; they're always additive. Project-level *ignore* entries, however,
+are dropped in strict mode — see below.
 
 Manage either level with the same commands by adding `--project`:
 
@@ -224,6 +225,9 @@ npm-guard config set minMonthlyDownloads 500 --project    # this repo only
 
 npm-guard config allow some-trusted-package                # global
 npm-guard config allow some-trusted-package --project      # this repo only
+
+npm-guard config ignore my-internal-package                # global
+npm-guard config ignore my-internal-package --project      # this repo only
 ```
 
 `npm-guard status` shows both the global and project config file paths,
@@ -258,6 +262,47 @@ same way:
   }
 }
 ```
+
+## Skipping the check entirely (ignore list)
+
+An allowlisted package is still looked up and still reported — you just see
+`[BYPASSED]` with what it *would* have failed, instead of a block. If you
+don't want to see it at all, put it on the **ignore list** instead: those
+packages are never looked up, so there's no network call, no per-package
+line, and nothing to bypass.
+
+```bash
+npm-guard config ignore my-internal-package            # every project
+npm-guard config ignore my-internal-package --project  # this repo only
+npm-guard config unignore my-internal-package          # start checking it again
+```
+
+Or write it straight into `npm-guard.config.json` / the `npmGuard` field:
+
+```json
+{
+  "npmGuard": {
+    "ignore": ["my-internal-package", "@my-company/private-sdk"]
+  }
+}
+```
+
+All that shows up at install time is one summary line:
+
+```
+[npm-guard] Skipping 2 ignored package(s): my-internal-package, @my-company/private-sdk
+```
+
+Good for private or internal packages that will never have public download
+counts, and for a first-party monorepo package. Bad as a way to quiet a
+block you don't understand — an ignored package isn't checked against the
+malware feed either. If you want a package to install but still be told what
+it's failing, use the allowlist above.
+
+`npm-guard status` shows the effective ignore list. Note that **strict mode
+(`NPM_GUARD_STRICT=1`) drops project-level ignore entries** and honors only
+your global ones, since a repo you just cloned could otherwise skip its own
+malware check silently.
 
 ## Adjusting the rules
 

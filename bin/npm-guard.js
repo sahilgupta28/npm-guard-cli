@@ -93,9 +93,20 @@ function printReport(report, config) {
 }
 
 async function checkPackages(names, config) {
-  console.log(`\n[npm-guard] Checking reputation for ${names.length} package(s)...\n`);
+  const ignored = names.filter((n) => config.ignore.includes(n));
+  const toCheck = names.filter((n) => !config.ignore.includes(n));
+
+  if (ignored.length > 0) {
+    console.log(`\n[npm-guard] Skipping ${ignored.length} ignored package(s): ${ignored.join(", ")}`);
+  }
+  if (toCheck.length === 0) {
+    console.log("");
+    return { results: [], blocked: [] };
+  }
+
+  console.log(`\n[npm-guard] Checking reputation for ${toCheck.length} package(s)...\n`);
   const results = [];
-  for (const name of names) {
+  for (const name of toCheck) {
     const report = await getPackageReport(name, config);
     printReport(report, config);
     results.push(report);
@@ -281,7 +292,17 @@ function cmdStatus() {
   console.log(`  blockDeprecated:            ${effective.blockDeprecated}`);
   console.log(`  blockMalware:               ${effective.blockMalware}`);
   console.log(`  allowlist:                  ${effective.allowlist.join(", ") || "(none)"}`);
+  console.log(`  ignore (never checked):     ${effective.ignore.join(", ") || "(none)"}`);
 }
+
+// allowlist: still checked and reported, just never blocks.
+// ignore:    never looked up at all — no network call, no per-package output.
+const LIST_ACTIONS = {
+  allow: { listKey: "allowlist", label: "allowlist", add: true },
+  disallow: { listKey: "allowlist", label: "allowlist", add: false },
+  ignore: { listKey: "ignore", label: "ignore list", add: true },
+  unignore: { listKey: "ignore", label: "ignore list", add: false },
+};
 
 function cmdConfig(args) {
   const isProject = args.includes("--project");
@@ -304,26 +325,22 @@ function cmdConfig(args) {
     if (isProject) cfg.setProjectConfigValue(cwd, key, value);
     else cfg.setGlobalConfigValue(key, value);
     console.log(`[npm-guard] Set ${key} = ${value} (${scope})`);
-  } else if (action === "allow") {
+  } else if (LIST_ACTIONS[action]) {
+    const { listKey, label, add } = LIST_ACTIONS[action];
     const names = parsePackageList(rest);
     if (names.length === 0) {
-      console.error("Usage: npm-guard config allow <pkg>[,<pkg2>,...] [--project]");
+      console.error(`Usage: npm-guard config ${action} <pkg>[,<pkg2>,...] [--project]`);
       process.exit(1);
     }
-    if (isProject) cfg.addToProjectAllowlist(cwd, names);
-    else cfg.addToGlobalAllowlist(names);
-    console.log(`[npm-guard] Added to the ${scope} allowlist: ${names.join(", ")}`);
-  } else if (action === "disallow") {
-    const names = parsePackageList(rest);
-    if (names.length === 0) {
-      console.error("Usage: npm-guard config disallow <pkg>[,<pkg2>,...] [--project]");
-      process.exit(1);
+    if (isProject) {
+      (add ? cfg.addToProjectList : cfg.removeFromProjectList)(cwd, listKey, names);
+    } else {
+      (add ? cfg.addToGlobalList : cfg.removeFromGlobalList)(listKey, names);
     }
-    if (isProject) cfg.removeFromProjectAllowlist(cwd, names);
-    else cfg.removeFromGlobalAllowlist(names);
-    console.log(`[npm-guard] Removed from the ${scope} allowlist: ${names.join(", ")}`);
+    const verb = add ? "Added to" : "Removed from";
+    console.log(`[npm-guard] ${verb} the ${scope} ${label}: ${names.join(", ")}`);
   } else {
-    console.error("Usage: npm-guard config <get|set|allow|disallow> [args] [--project]");
+    console.error("Usage: npm-guard config <get|set|allow|disallow|ignore|unignore> [args] [--project]");
     process.exit(1);
   }
 }
